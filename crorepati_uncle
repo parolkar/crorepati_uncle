@@ -1,0 +1,68 @@
+#! /bin/env ruby
+#Author: Abhishek Parolkar (abhishek@parolkar.com)
+
+require "rubygems"
+require "fastercsv"
+require 'optparse'
+
+# QIF specification : http://linuxfinances.info/info/financeformats.html
+
+options = {}
+optparse = OptionParser.new do|opts|
+  # Set a banner, displayed at the top
+  # of the help screen.
+  opts.banner = "Usage: crorepati_uncle -i <input CSV file> -o <output QIF file> -b <bank> "
+
+
+  options[:input_filename] = nil
+  opts.on( '-i', '--input FILE', 'Read csv from FILE' ) do|file|
+    options[:input_filename] = file
+  end
+  options[:output_filename] = nil
+  opts.on( '-o', '--output FILE', 'Write qif to FILE' ) do|file|
+    options[:output_filename] = file
+  end
+  
+  options[:bank] = nil
+  opts.on( '-b', '--output BANK', 'for Bank Name' ) do|bank|
+    options[:bank] = bank
+  end
+
+  # This displays the help screen, all programs are
+  # assumed to have this option.
+  opts.on( '-h', '--help', 'Display this screen' ) do
+    puts opts
+    exit
+  end
+end
+
+
+optparse.parse!
+
+if !options[:input_filename] || !options[:output_filename] || !options[:bank]
+    puts "Invalid input! \nUsage: crorepati_uncle -i <input CSV file> -o <output QIF file> -b <bank> \nplease execute 'crorepati_uncle -h' to know options"
+   exit
+end
+
+csv_file = File.open(options[:input_filename], "r") 
+csv_contents = csv_file.read
+qif=""
+qif << "!Type:Bank\n"
+
+MAPPINGS = {
+  "kotak" => {:date => 0,:withdrawal => 4 , :deposit => 5 , :reference_id => 3, :naration => 2}
+}
+
+map = MAPPINGS[options[:bank]]
+
+FasterCSV.parse(csv_contents) do |row|
+    qif << "D#{row[map[:date]]}\n"
+    qif << "T#{row[map[:withdrawal]] != '0' ? ('-'+ row[map[:withdrawal]] ) : row[map[:deposit]] }\n"
+    qif << "N#{row[map[:reference_id]]}\n"
+    qif << "P#{row[map[:naration]]}\n"
+    qif << "^\n"
+  end
+
+qif_file = File.open(options[:output_filename], "w") 
+qif_file.write(qif)
+qif_file.close
